@@ -139,6 +139,9 @@ data "aws_eks_cluster_auth" "this" {
 module "eks_addons" {
   source = "git::ssh://git@github.com:chronno4/exemplo-addon-eks.git?ref=main"
 
+
+  depends_on = [module.eks]
+
   auth_mapping          = var.mapped_roles
   cluster_name          = module.eks.cluster_name
   cluster_auth_endpoint = module.eks.cluster_endpoint
