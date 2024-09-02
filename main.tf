@@ -137,7 +137,7 @@ data "aws_eks_cluster_auth" "this" {
 }
 
 module "eks_addons" {
-  source = "git::ssh://git@github.com:chronno4/exemplo-addon-eks.git?ref=main"
+  source = "git::ssh://git@github.com/chronno4/exemplo-addon-eks.git?ref=main"
 
 
   depends_on = [module.eks]
