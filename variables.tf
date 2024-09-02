@@ -36,10 +36,33 @@ variable "cluster_endpoint_public_access" {
 }
 
 variable "worker_nodes" {
-  description = "Map of EKS managed node group definitions to create"
-  type        = any
-  default     = {}
+  type = map(object({
+    min_size       = number
+    max_size       = number
+    desired_size   = number
+    instance_types = list(string)
+    labels         = optional(map(string), {})
+    taints = optional(list(object({
+      key    = string
+      value  = string
+      effect = string
+    })), [])
+    tags = optional(map(string), {})
+  }))
+  description = "A Map with all nodes definitions to be used. As result, will be created a node group with defined settings"
+  default = {
+    ONDEMAND = {
+      min_size       = 1
+      max_size       = 10
+      desired_size   = 1
+      instance_types = ["t3.large"]
+      labels         = {}
+      taints         = []
+      tags           = {}
+    }
+  }
 }
+
 
 variable "default_kubernetes_version" {
   type        = string
@@ -47,17 +70,17 @@ variable "default_kubernetes_version" {
   default     = "1.30"
 }
 
-# variable "enable_csi_driver_ebs" {
-#   type        = bool
-#   description = "Set if the EBS CSI driver will be deployed in the cluster"
-#   default     = false
+variable "enable_csi_driver_ebs" {
+  type        = bool
+  description = "Set if the EBS CSI driver will be deployed in the cluster"
+  default     = false
 
-# }
-# variable "enable_csi_driver_efs" {
-#   type        = bool
-#   description = "Set if the EFS CSI driver will be deployed in the cluster"
-#   default     = false
-# }
+}
+variable "enable_csi_driver_efs" {
+  type        = bool
+  description = "Set if the EFS CSI driver will be deployed in the cluster"
+  default     = false
+}
 
 variable "tags" {
   type        = map(string)
@@ -95,31 +118,6 @@ variable "kms_key_administrators" {
   type        = list(string)
   default     = []
 }
-
-variable "karpenter_instance_categories" {
-  type        = list(string)
-  description = "List of instance categories used by Karpenter"
-  default     = ["c", "m"]
-}
-
-variable "karpenter_instance_sizes" {
-  type        = list(string)
-  description = "List of instance sizes used by Karpenter"
-  default     = ["medium", "large", "xlarge"]
-}
-variable "karpenter_capacity_types" {
-  type        = list(string)
-  description = "List of instance capacity types used by Karpenter"
-  default     = ["spot"]
-}
-
-variable "karpenter_instance_archs" {
-  type        = list(string)
-  description = "List of instance archs used by Karpenter"
-  default     = ["amd64"]
-}
-
-###### NGINX ingress
 
 variable "install_nginx_ingress" {
   description = "Flag to install NGINX Ingress with NLB"
@@ -169,7 +167,7 @@ variable "nginx_ingress_version" {
   default     = "4.11.1"
 }
 
-
+### External Secret
 
 ### External Secrets
 variable "external_secret_chart_version" {
@@ -241,8 +239,6 @@ variable "docker_remote_key" {
   type        = string
   default     = "your-secrets-manager-key"
 }
-
-### Argocd
 variable "argocd_name" {
   description = "Name of ArgoCD"
   type        = string
@@ -271,6 +267,12 @@ variable "argocd_path" {
   type        = string
 }
 
+variable "ingressclassname" {
+  description = "Ingress class name for ArgoCD"
+  type        = string
+  default     = "alb"
+}
+
 variable "argocd_repositories" {
   description = "ArgoCD repositories"
   type = map(object({
@@ -282,6 +284,14 @@ variable "argocd_repositories" {
   default = {}
 }
 
+variable "argocd_projects" {
+  description = "List of ArgoCD projects"
+  type = map(object({
+    name        = string
+    description = string
+  }))
+  default = {}
+}
 
 variable "applicationset_ingress_hostname" {
   description = "Ingress hostname for ApplicationSet of ArgoCD"
@@ -293,23 +303,8 @@ variable "applicationset_path" {
   type        = string
 }
 
-variable "ingressclassname" {
-  description = "Ingress class name for ArgoCD"
-  type        = string
-  default     = "alb"
-}
-
 variable "install_argocd" {
   description = "Flag to control the installation of ArgoCD"
   type        = bool
   default     = true
-}
-
-variable "argocd_projects" {
-  description = "List of ArgoCD projects"
-  type = map(object({
-    name        = string
-    description = string
-  }))
-  default = {}
 }
