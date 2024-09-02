@@ -24,47 +24,47 @@ module "key_pair" {
 }
 
 module "eks" {
+  ### Related to external module
+  ## https://registry.terraform.io/modules/terraform-aws-modules/eks/aws/latest
   source  = "terraform-aws-modules/eks/aws"
-  version = "20.24.0"
+  version = "19.21.0"
+  ###
 
+  ### Network related configuration
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids
 
+  ### Misc configuration
   cluster_name              = local.compound_cluster_name
   cluster_version           = var.default_kubernetes_version
-
+  manage_aws_auth_configmap = false
   enable_irsa               = true
 
   cluster_enabled_log_types = ["api", "authenticator", "audit", "scheduler", "controllerManager"]
 
-  # Cluster Addons nativos AWS (baseado na documentação oficial)
   cluster_addons = try(var.custom_cluster_addons,
-   {
-    coredns = {
-      most_recent = true
-    }
-    kube-proxy = {
-      most_recent = true
-    }
-    vpc-cni = {
-      most_recent = true
-    }
-    aws-ebs-csi-driver = {
-      most_recent = true
-    }
-    aws-efs-csi-driver = {  # Adicionando suporte ao driver EFS CSI como addon gerenciado
-      most_recent = true
-    }
-    eks-pod-identity-agent = {  # Gerenciamento de credenciais para aplicações com IRSA
-      most_recent = true
-    }
-  })
-		
+    {
+      coredns = {
+        most_recent = true
+      }
+      kube-proxy = {
+        most_recent = true
+      }
+      vpc-cni = {
+        most_recent = true
+      }
+    },
+    var.enable_csi_driver_efs ? {
+      aws-efs-csi-driver = {
+        most_recent = true
+      }
+    } : {}
+  )
+
   ### Authentication and Authorization settings
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
 
-  # Segurança
   cluster_security_group_additional_rules = {
     access_from_vpn = {
       description                = "Enable access from VPN"
@@ -76,7 +76,6 @@ module "eks" {
       source_node_security_group = false
     }
   }
-
   ### Compute related settings
   eks_managed_node_group_defaults = {
     key_name = module.key_pair.secret_name
@@ -118,18 +117,27 @@ module "eks" {
   }
 
   eks_managed_node_groups = var.worker_nodes
+
   cloudwatch_log_group_retention_in_days = var.log_retention_in_days
+
   kms_key_administrators = var.kms_key_administrators
+
   tags = var.tags
+}
+
+module "eks_aws_auth" {
+  source  = "terraform-aws-modules/eks/aws//modules/aws-auth"
+  version = "~> 20.0"
+
+  manage_aws_auth_configmap = false
 }
 
 data "aws_eks_cluster_auth" "this" {
   name = local.compound_cluster_name
 }
 
-
 module "eks_addons" {
-  source = "git::ssh://git@stash.matera.com:7999/trm/aws-eks-addons.git?ref=featurepoc-argocd-aws"
+  source = "git::ssh://git@github.com:chronno4/exemplo-addon-eks.git?ref=main"
 
   auth_mapping          = var.mapped_roles
   cluster_name          = module.eks.cluster_name
@@ -137,19 +145,14 @@ module "eks_addons" {
   cluster_auth_ca       = module.eks.cluster_certificate_authority_data
   cluster_auth_token    = data.aws_eks_cluster_auth.this.token
 
-  # enable_csi_driver_ebs = false  # Removido, pois agora é gerenciado pelo EKS Addon nativo
-  # enable_csi_driver_efs = var.enable_csi_driver_efs
+  enable_csi_driver_ebs = var.enable_csi_driver_ebs
+  enable_csi_driver_efs = var.enable_csi_driver_efs
 
   oidc_provider_arn    = local.oidc_provider_arn
   oidc_provider_issuer = local.oidc_provider_issuer
 
   autoscaling_controller_expander            = var.autoscaling_controller_expander
   autoscaling_controller_expander_priorities = var.autoscaling_controller_expander_priorities
-
-  # karpenter_instance_categories = var.karpenter_instance_categories
-  # karpenter_instance_sizes      = var.karpenter_instance_sizes
-  # karpenter_capacity_types      = var.karpenter_capacity_types
-  # karpenter_instance_archs      = var.karpenter_instance_archs
 
   # External Secrets
   external_secret_chart_version    = var.external_secret_chart_version
@@ -188,3 +191,5 @@ module "eks_addons" {
   argocd_repositories             = var.argocd_repositories
   argocd_projects                 = var.argocd_projects
 }
+
+
